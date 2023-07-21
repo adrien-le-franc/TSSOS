@@ -21,7 +21,7 @@ mutable struct mcpop_data
     GramMat # Gram matrix
     moment # Moment matrix
     solver # SDP solver
-    SDP_status
+    model # JuMP SDP model
     tol # tolerance to certify global optimality
     flag # 0 if global optimality is certified; 1 otherwise
 end
@@ -130,9 +130,9 @@ function cs_tssos_first(supp::Vector{Vector{Vector{UInt16}}}, coe, n, d; numeq=0
         mb = maximum(maximum.(sb))
         println("Obtained the block structure in $time seconds.\nThe maximal size of blocks is $mb.")
     end
-    opt,ksupp,moment,GramMat,SDP_status = blockcpop_mix(n, m, supp, coe, basis, cliques, cql, cliquesize, J, ncc, blocks, cl, blocksize, numeq=numeq, nb=nb, QUIET=QUIET,
+    opt,ksupp,moment,GramMat,model = blockcpop_mix(n, m, supp, coe, basis, cliques, cql, cliquesize, J, ncc, blocks, cl, blocksize, numeq=numeq, nb=nb, QUIET=QUIET,
     TS=TS, solver=solver, tune=tune, dualize=dualize, solve=solve, solution=solution, MomentOne=MomentOne, Gram=Gram, Mommat=Mommat, cosmo_setting=cosmo_setting)
-    data = mcpop_data(n, nb, m, numeq, supp, coe, basis, rlorder, ksupp, cql, cliques, cliquesize, J, ncc, sb, numb, blocks, cl, blocksize, GramMat, moment, solver, SDP_status, tol, 1)
+    data = mcpop_data(n, nb, m, numeq, supp, coe, basis, rlorder, ksupp, cql, cliques, cliquesize, J, ncc, sb, numb, blocks, cl, blocksize, GramMat, moment, solver, model, tol, 1)
     sol = nothing
     if solution == true
         sol,gap,data.flag = approx_sol(opt, moment, n, cliques, cql, cliquesize, supp, coe, numeq=numeq, tol=tol)
@@ -188,7 +188,7 @@ function cs_tssos_higher!(data; TS="block", merge=false, md=3, QUIET=false, solv
             mb = maximum(maximum.(sb))
             println("Obtained the block structure in $time seconds.\nThe maximal size of blocks is $mb.")
         end
-        opt,ksupp,moment,GramMat,SDP_status = blockcpop_mix(n, m, supp, coe, basis, cliques, cql, cliquesize, J, ncc, blocks, cl,
+        opt,ksupp,moment,GramMat,model = blockcpop_mix(n, m, supp, coe, basis, cliques, cql, cliquesize, J, ncc, blocks, cl,
         blocksize, numeq=numeq, nb=nb, QUIET=QUIET, solver=solver, solve=solve, tune=tune, solution=solution, dualize=dualize,
         ipart=ipart, MomentOne=MomentOne, Gram=Gram, Mommat=Mommat, cosmo_setting=cosmo_setting)
         if solution == true
@@ -206,7 +206,7 @@ function cs_tssos_higher!(data; TS="block", merge=false, md=3, QUIET=false, solv
         data.moment = moment
         data.sb = sb
         data.numb = numb
-        data.SDP_status = SDP_status
+        data.model = model
     else
         println("No higher TS step of the CS-TSSOS hierarchy!")
     end
@@ -441,7 +441,7 @@ function blockcpop_mix(n, m, supp::Vector{Vector{Vector{UInt16}}}, coe, basis, c
             moment = get_moment(measure, tsupp, cliques, cql, cliquesize, basis=basis, nb=nb)
         end
     end
-    return objv,ksupp,moment,GramMat,SDP_status
+    return objv,ksupp,moment,GramMat,model
 end
 
 function init_order(dg, J, cliquesize, cql; foc=100, order="min")
